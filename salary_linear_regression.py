@@ -80,6 +80,7 @@ print("R-squared: ", model.score(x_variables, y_variable))
 #Statsmodels OLS
 model_ols = OLS(y_variable, add_constant(x_variables)).fit()
 print(model_ols.summary())
+# Durbin-Watson: 1.648 means there is no autocorrelation between the residuals.
 
 # Regression diagnostics and analysis of assumptions
  # Homoscedasticity
