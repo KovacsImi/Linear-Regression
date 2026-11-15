@@ -5,7 +5,7 @@
   (Medical Insurance Cost - OLS Linear Regression Analysis)
 =============================================================================
 
-  Szerzo / Author : [Neved ide / Your Name Here]
+  Szerzo / Author : [Kovács Imre]
   Datum  / Date   : 2026-11-15
   Python          : 3.10+
   Adatforras      : Kaggle - mirichoi0218/insurance
@@ -30,6 +30,8 @@ import warnings
 warnings.filterwarnings("ignore")
 
 import os
+import io
+import base64
 import numpy as np
 import pandas as pd
 
@@ -59,16 +61,27 @@ from kagglehub import KaggleDatasetAdapter
 OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "plots")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-# Globalis abra-szamlalo
+# Globalis abra-szamlalo es Base64 kep-tarolo a HTML riporthoz
 _plot_counter = [0]
+plot_base64 = {}
 
 
 def save_and_show(fig, name_hint="plot"):
-    """Abra mentese PNG-be es memoria felszabaditasa."""
+    """Abra mentese PNG-be, Base64 kodolasa a HTML riporthoz es memoria felszabaditasa."""
     _plot_counter[0] += 1
     fname = f"{_plot_counter[0]:02d}_{name_hint}.png"
     fpath = os.path.join(OUTPUT_DIR, fname)
+    
+    # 1. Mentes lemezre PNG fajlba
     fig.savefig(fpath, bbox_inches="tight", dpi=150)
+    
+    # 2. Mentes memoriaba es Base64 kodolas a fuggetlen HTML riporthoz
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", bbox_inches="tight", dpi=150)
+    buf.seek(0)
+    b64_str = base64.b64encode(buf.read()).decode("utf-8")
+    plot_base64[name_hint] = f"data:image/png;base64,{b64_str}"
+    
     plt.close(fig)
     print(f"   [ABRA MENTVE] -> {fpath}")
 
@@ -510,6 +523,7 @@ print(f"\n   Szignifikanciaszint (alpha) = {alpha}")
 # Kezdo valtozok (a VIF szures utani keszletbol)
 be_cols = X_cols_final.copy()
 step = 0
+be_history = []
 
 print(f"\n   Kiindulasi valtozok ({len(be_cols)} db): {be_cols}")
 print("-" * 70)
@@ -533,9 +547,23 @@ while True:
     if max_pval > alpha:
         print(f"      [X] '{max_pval_var}' p = {max_pval:.6f} > {alpha} -> KISZURES!")
         be_cols.remove(max_pval_var)
+        be_history.append({
+            "step": step,
+            "dropped": max_pval_var,
+            "p_val": max_pval,
+            "adj_r2": model_be.rsquared_adj,
+            "remaining": be_cols.copy()
+        })
         print(f"      Marado valtozok: {be_cols}")
     else:
         print(f"      [OK] Minden valtozo szignifikans (p <= {alpha}). Megallas.")
+        be_history.append({
+            "step": step,
+            "dropped": "Nincs (Minden p <= 0.05)",
+            "p_val": max_pval,
+            "adj_r2": model_be.rsquared_adj,
+            "remaining": be_cols.copy()
+        })
         break
 
 # Vegso modell a Backward Elimination utan
@@ -820,3 +848,51 @@ Megjegyzes:
 
 print("[OK] Az elemzes befejezodott.")
 print(f"[INFO] Minden abra itt talalhato: {OUTPUT_DIR}")
+
+# %% ========================================================================
+# 9. ONALLO HTML RIPORT GENERALASA (Standalone HTML Report Generation)
+# ============================================================================
+print("\n" + "=" * 70)
+print("9. ONALLO HTML RIPORT GENERALASA (insurance_report.html)")
+print("=" * 70)
+
+from report_generator import generate_html_report
+
+report_data = {
+    "df_clean": df,
+    "missing_df": missing_df,
+    "valtozo_leirasok": valtozo_leirasok,
+    "numeric_cols": numeric_cols,
+    "categorical_cols": categorical_cols,
+    "df_encoded": df_encoded,
+    "spearman_corr": spearman_corr,
+    "dropped_corr": dropped_corr,
+    "vif_initial": vif_df,
+    "vif_final": vif_df,
+    "ols_base": ols_base,
+    "ols_final": ols_final,
+    "ols_robust": ols_robust if heteroscedasticity_detected else None,
+    "ols_final_rmse": final_rmse,
+    "ols_final_mae": final_mae,
+    "comparison": comparison,
+    "be_history": be_history,
+    "sw_stat": sw_stat if n <= 5000 else None,
+    "sw_pval": sw_pval if n <= 5000 else None,
+    "jb_stat": jb_stat,
+    "jb_pval": jb_pval,
+    "bp_stat": bp_stat,
+    "bp_pval": bp_pval,
+    "bp_fstat": bp_fstat,
+    "bp_fpval": bp_fpval,
+    "dw_stat": dw_stat,
+    "cooks_threshold": cooks_threshold,
+    "influential_count": len(influential_idx),
+    "influential_pct": len(influential_idx) / n * 100,
+    "top_influential": [(idx, cooks_d[idx]) for idx in top_influential] if len(influential_idx) > 0 else [],
+    "plot_base64": plot_base64,
+    "output_dir": OUTPUT_DIR,
+}
+
+html_report_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "insurance_report.html")
+generate_html_report(report_data, html_report_path)
+print(f"[OK] Onallo HTML riport sikeresen letrehozva: {html_report_path}")
