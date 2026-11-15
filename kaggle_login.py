@@ -1,7 +1,7 @@
 import kagglehub
 import os
 
-kaggle_api_key = os.environ['JAVA_EMAIL_PASSWORD'] 
+kaggle_api_key = os.environ['kaggle_api_key'] 
 
 print(kaggle_api_key)
 

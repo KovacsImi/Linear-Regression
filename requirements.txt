@@ -1,0 +1,19 @@
+# Egeszsegbiztositasi Koltsegek - OLS Linearis Regresszio
+# Fuggosegek (Dependencies)
+
+# Adatbetoltes es adatkezeles
+kagglehub>=0.3.0
+pandas>=2.2.0
+numpy>=2.0.0
+
+# Statisztika es gepi tanulas
+scipy>=1.14.0
+statsmodels>=0.14.0
+scikit-learn>=1.5.0
+
+# Adatvizualizacio
+matplotlib>=3.9.0
+seaborn>=0.13.0
+
+# PDF generalas a markdown osszefoglalobol
+fpdf2>=2.8.0

@@ -6,9 +6,10 @@
 =============================================================================
 
   Szerzo / Author : [Neved ide / Your Name Here]
-  Datum  / Date   : 2026-10-16
+  Datum  / Date   : 2026-11-15
   Python          : 3.10+
-  Adatforras      : Kaggle - mragpavank/insurance1
+  Adatforras      : Kaggle - mirichoi0218/insurance
+                    (https://www.kaggle.com/datasets/mirichoi0218/insurance)
 
   Celvaltozo (y)  : charges  (biztositasi koltseg)
   Magyarazo valtozok (X): age, sex, bmi, children, smoker, region
@@ -22,8 +23,8 @@
 # %% ========================================================================
 # 0. KONYVTARAK IMPORTALASA (Library Imports)
 # ============================================================================
-import sys
-sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+#import sys
+#sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -86,10 +87,10 @@ print("[OK] Minden konyvtar sikeresen importalva.")
 #    (Data Loading & Basic Inspection)
 # ============================================================================
 
-# 1.0 - Adat beolvasas Kaggle-rol
-df = kagglehub.dataset_load(
+# 1.0 - Adat beolvasas Kaggle-rol (https://www.kaggle.com/datasets/mirichoi0218/insurance)
+df = kagglehub.load_dataset(
     KaggleDatasetAdapter.PANDAS,
-    "mragpavank/insurance1",
+    "mirichoi0218/insurance",
     "insurance.csv",
 )
 
@@ -130,6 +131,30 @@ else:
 print("\n" + "=" * 70)
 print("2. LEIRO STATISZTIKAK ES FELTARO ADATELEMZES (EDA)")
 print("=" * 70)
+
+# --- Valtozok szoveges bemutatasa ---
+print("\n--- Az adatbazis valtozoinak leirasa ---")
+valtozo_leirasok = {
+    "age":      "Az egyen eletkora evekben.",
+    "sex":      "Az egyen neme (male/female).",
+    "bmi":      "Testtomegindex (Body Mass Index) - megmutatja, hogy valakinek "
+                "egeszseges-e a testsulya; a testsuly es a testmagassag "
+                "negyzetenek hanyadosabol szamitjak ki, kg/m2 mertekegysegben.",
+    "children": "A biztositott gyermekeinek a szama.",
+    "smoker":   "Dohanyzik-e az egyen vagy sem (yes/no).",
+    "region":   "A regio, ahol az egyen el.",
+    "charges":  "Az egyennek felszamitott egeszsegbiztositasi koltsegek (USD)."
+}
+
+for valtozo, leiras in valtozo_leirasok.items():
+    print(f"  {valtozo:10s} : {leiras}")
+
+# Valtozo tipusok osszefoglalasa
+print("\n--- Valtozo tipusok osszefoglalasa ---")
+print(f"  Celvaltozo (y)           : charges (folytonos, numerikus)")
+print(f"  Magyarazo valtozok (X)   :")
+print(f"    - Numerikus valtozok   : age, bmi, children")
+print(f"    - Kategorikus valtozok : sex, smoker, region")
 
 # 2.1 - Megfigyelesek es valtozok szama
 n_rows, n_cols = df.shape
@@ -224,6 +249,74 @@ for col in categorical_cols:
     save_and_show(fig, f"count_{col}")
 
 # %% ========================================================================
+# 2.6 - CELVALTOZO vs MAGYARAZO VALTOZOK (Scatter Plots)
+# ============================================================================
+
+print("\n--- Celvaltozo (charges) vs magyarazo valtozok (Scatter Plot) ---")
+
+# --- 2.6a: charges vs age | charges vs bmi  (hue = smoker) ---
+fig = plt.figure(figsize=(14, 6))
+
+ax1 = fig.add_subplot(121)
+sns.scatterplot(x="age", y="charges", data=df, palette="magma",
+                hue="smoker", ax=ax1, alpha=0.7, edgecolor="white", linewidths=0.3)
+ax1.set_title("Charges vs Age (szinezve: smoker)")
+ax1.set_xlabel("Age (eletkor, ev)")
+ax1.set_ylabel("Charges (koltseg, USD)")
+
+ax2 = fig.add_subplot(122)
+sns.scatterplot(x="bmi", y="charges", data=df, palette="viridis",
+                hue="smoker", ax=ax2, alpha=0.7, edgecolor="white", linewidths=0.3)
+ax2.set_title("Charges vs BMI (szinezve: smoker)")
+ax2.set_xlabel("BMI (testtomegindex, kg/m2)")
+ax2.set_ylabel("Charges (koltseg, USD)")
+
+plt.tight_layout()
+save_and_show(fig, "scatter_age_bmi_vs_charges")
+
+# --- 2.6b: charges vs children | charges vs smoker ---
+fig = plt.figure(figsize=(14, 6))
+
+ax3 = fig.add_subplot(121)
+sns.scatterplot(x="children", y="charges", data=df, palette="coolwarm",
+                hue="smoker", ax=ax3, alpha=0.7, edgecolor="white", linewidths=0.3)
+ax3.set_title("Charges vs Children (szinezve: smoker)")
+ax3.set_xlabel("Children (gyermekek szama)")
+ax3.set_ylabel("Charges (koltseg, USD)")
+
+ax4 = fig.add_subplot(122)
+# A smoker valtozonal NEM hasznalunk hue='smoker'-t (onmaga lenne),
+# helyette boxplot-ot alkalmazunk a jobb vizualizacioert.
+sns.boxplot(x="smoker", y="charges", data=df, palette="Set2", ax=ax4,
+            flierprops=dict(marker="o", markersize=4, alpha=0.5))
+ax4.set_title("Charges vs Smoker")
+ax4.set_xlabel("Smoker (dohanyzik-e)")
+ax4.set_ylabel("Charges (koltseg, USD)")
+
+plt.tight_layout()
+save_and_show(fig, "scatter_children_smoker_vs_charges")
+
+# --- 2.6c: charges vs sex | charges vs region  (hue = smoker) ---
+fig = plt.figure(figsize=(14, 6))
+
+ax5 = fig.add_subplot(121)
+sns.stripplot(x="sex", y="charges", data=df, palette="magma",
+              hue="smoker", ax=ax5, alpha=0.5, dodge=True, jitter=True, size=3)
+ax5.set_title("Charges vs Sex (szinezve: smoker)")
+ax5.set_xlabel("Sex (nem)")
+ax5.set_ylabel("Charges (koltseg, USD)")
+
+ax6 = fig.add_subplot(122)
+sns.stripplot(x="region", y="charges", data=df, palette="viridis",
+              hue="smoker", ax=ax6, alpha=0.5, dodge=True, jitter=True, size=3)
+ax6.set_title("Charges vs Region (szinezve: smoker)")
+ax6.set_xlabel("Region (regio)")
+ax6.set_ylabel("Charges (koltseg, USD)")
+
+plt.tight_layout()
+save_and_show(fig, "scatter_sex_region_vs_charges")
+
+# %% ========================================================================
 # 3. ADATELOKESZITES ES SPEARMAN KORRELACIO VIZSGALAT
 #    (Data Preparation & Spearman Correlation Analysis)
 # ============================================================================
@@ -238,8 +331,21 @@ print("=" * 70)
 print("\n--- One-Hot Encoding (pd.get_dummies) ---")
 df_encoded = pd.get_dummies(df, columns=categorical_cols,
                             drop_first=True, dtype=float)
+
+# 3.1b - Interakcios valtozok letrehozasa
+#   A dohanyzo statusz (smoker_yes) moderalo hatast fejt ki az eletkor es a BMI
+#   koltsegnovekmenyere, ezert letrehozzuk a kovetkezo interakcios tagokat:
+#     bmi_x_smoker = bmi * smoker_yes
+#     age_x_smoker = age * smoker_yes
+print("\n--- Interakcios valtozok letrehozasa ---")
+df_encoded["bmi_x_smoker"] = df_encoded["bmi"] * df_encoded["smoker_yes"]
+df_encoded["age_x_smoker"] = df_encoded["age"] * df_encoded["smoker_yes"]
+print("   [+] bmi_x_smoker = bmi * smoker_yes")
+print("   [+] age_x_smoker = age * smoker_yes")
+
 print(f"   Eredeti adatbazis merete : {df.shape}")
 print(f"   Kodolt adatbazis merete  : {df_encoded.shape}")
+print(f"       (One-Hot Encoding + 2 interakcios valtozo)")
 print(f"\n   Uj oszlopok: {list(df_encoded.columns)}")
 print(df_encoded.head())
 
