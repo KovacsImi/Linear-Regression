@@ -226,10 +226,24 @@ print("\n--- Numerikus valtozok eloszlasa (Hisztogram + KDE) ---")
 for col in numeric_cols:
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
 
-    # Hisztogram + KDE
-    sns.histplot(df[col], kde=True, bins=30, color="steelblue", ax=axes[0],
-                 edgecolor="white", linewidth=0.5)
-    axes[0].set_title(f"'{col}' eloszlasa (Hisztogram + KDE)")
+    if col == "children":
+        # A gyermekek szama diszkret ertekeket vesz fel (0, 1, 2, 3, 4, 5)
+        # Ezert diszkret hisztogramkent abrazzuk folytonos KDE trendvonal nelkul,
+        # igy a trendvonal nem esik be ket diszkret egesz ertek koze.
+        sns.histplot(df[col], discrete=True, kde=False, color="steelblue", ax=axes[0],
+                     edgecolor="white", linewidth=0.8, shrink=0.85)
+        axes[0].set_title(f"'{col}' eloszlasa (Diszkret hisztogram)")
+        axes[0].set_xticks([0, 1, 2, 3, 4, 5])
+        for p in axes[0].patches:
+            axes[0].annotate(f"{int(p.get_height())}",
+                             (p.get_x() + p.get_width() / 2., p.get_height()),
+                             ha="center", va="bottom", fontsize=10, fontweight="bold")
+    else:
+        # Folytonos / tobb erteku numerikus valtozok: Hisztogram + KDE
+        sns.histplot(df[col], kde=True, bins=30, color="steelblue", ax=axes[0],
+                     edgecolor="white", linewidth=0.5)
+        axes[0].set_title(f"'{col}' eloszlasa (Hisztogram + KDE)")
+
     axes[0].set_xlabel(col)
     axes[0].set_ylabel("Gyakorisag")
 
@@ -619,6 +633,64 @@ comparison = pd.DataFrame({
 })
 print(comparison.to_string(index=False))
 
+# 7.3 - Standardizalt OLS modell (Standardized Beta Coefficients & Relativ Valtozo-fontossag)
+print("\n" + "-" * 70)
+print("7.3 STANDARDIZALT OLS MODELL (Relativ Valtozo-fontossag)")
+print("-" * 70)
+
+from sklearn.preprocessing import StandardScaler
+
+scaler_X = StandardScaler()
+X_final_std = pd.DataFrame(scaler_X.fit_transform(df_encoded[be_cols]), columns=be_cols)
+y_std = (y - y.mean()) / y.std(ddof=1)
+
+ols_std = sm.OLS(y_std, sm.add_constant(X_final_std)).fit()
+print("\n--- Standardizalt OLS Modell Summary ---")
+print(ols_std.summary())
+
+# Standardizalt betak osszegzo tablazata
+std_betas = []
+for c in be_cols:
+    raw_b = ols_final.params[c]
+    x_sd = df_encoded[c].std(ddof=1)
+    std_b = ols_std.params[c]
+    p_val = ols_std.pvalues[c]
+    impact_dollar = raw_b * x_sd
+    std_betas.append({
+        "Valtozo": c,
+        "Nyers Koefficiens ($)": raw_b,
+        "Valtozo Szorasa (SD_X)": x_sd,
+        "Standardizalt Beta": std_b,
+        "Abszolut Beta (|Beta*|)": abs(std_b),
+        "1 SD Hatas ($)": impact_dollar,
+        "p-ertek": p_val,
+    })
+
+std_betas_df = pd.DataFrame(std_betas).sort_values("Abszolut Beta (|Beta*|)", ascending=False).reset_index(drop=True)
+std_betas_df["Rangsor"] = [f"#{i+1}" for i in range(len(std_betas_df))]
+print("\n--- Standardizalt Betak es Relativ Fontossagi Rangsor ---")
+print(std_betas_df.to_string(index=False))
+
+# --- Standardizalt betak vizualizacioja (Horizontal Bar Chart) ---
+fig, ax = plt.subplots(figsize=(10, 5))
+plot_df = std_betas_df.sort_values("Standardizalt Beta", ascending=True)
+colors = ["#ef4444" if b < 0 else "#00d4ff" for b in plot_df["Standardizalt Beta"]]
+
+bars = ax.barh(plot_df["Valtozo"], plot_df["Standardizalt Beta"], color=colors, edgecolor="black", linewidth=0.6, height=0.55)
+ax.axvline(0, color="gray", linestyle="--", linewidth=0.8, alpha=0.7)
+ax.set_title("A Vegso Modell Magyarazo Valtozoinak Relativ Hatasnagysaga (Standardizalt Betak)", fontsize=12, fontweight="bold")
+ax.set_xlabel("Standardizalt Regresszios Koefficiens (Beta*) - [Szorasvaltozas]")
+ax.set_ylabel("Magyarazo Valtozo")
+
+for bar in bars:
+    width = bar.get_width()
+    text_x = width + (0.015 if width >= 0 else -0.065)
+    ax.annotate(f"{width:+.4f}", (text_x, bar.get_y() + bar.get_height() / 2.),
+                va="center", fontsize=9, fontweight="bold")
+
+plt.tight_layout()
+save_and_show(fig, "standardized_betas")
+
 # %% ========================================================================
 # 8. OLS DIAGNOSZTIKAI VIZSGALATOK A VEGSO MODELLEN
 #    (OLS Diagnostic Tests on the Final Model)
@@ -871,6 +943,8 @@ report_data = {
     "vif_final": vif_df,
     "ols_base": ols_base,
     "ols_final": ols_final,
+    "ols_std": ols_std,
+    "std_betas_df": std_betas_df,
     "ols_robust": ols_robust if heteroscedasticity_detected else None,
     "ols_final_rmse": final_rmse,
     "ols_final_mae": final_mae,
@@ -896,3 +970,12 @@ report_data = {
 html_report_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "insurance_report.html")
 generate_html_report(report_data, html_report_path)
 print(f"[OK] Onallo HTML riport sikeresen letrehozva: {html_report_path}")
+
+# Szinkronizalas a v2 fajlba is
+v2_report_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "medical_cost_analysis_report_v2.html")
+try:
+    import shutil
+    shutil.copyfile(html_report_path, v2_report_path)
+    print(f"[OK] Szinkronizalva a v2 riportfajlba is: {v2_report_path}")
+except Exception as e:
+    pass
